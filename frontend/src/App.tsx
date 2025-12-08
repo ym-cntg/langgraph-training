@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import TopicCard from './components/TopicCard';
 import ProgressBar from './components/ProgressBar';
 import ApiKeyModal from './components/ApiKeyModal';
+import NotebookInstructionsModal from './components/NotebookInstructionsModal';
 import { topics } from './data/topics';
 import { UserProgress } from './types';
 import { BookOpen, AlertCircle } from 'lucide-react';
@@ -17,6 +18,8 @@ function App() {
   });
 
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isNotebookModalOpen, setIsNotebookModalOpen] = useState(false);
+  const [selectedNotebook, setSelectedNotebook] = useState({ filename: '', title: '' });
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
@@ -58,24 +61,23 @@ function App() {
     }
 
     if (!progress.apiKey) {
+      alert('Please set your Anthropic API key first! Click the "Set API Key" button in the header.');
       setIsApiKeyModalOpen(true);
       return;
     }
 
-    // Open the notebook
-    const notebookUrl = topic.notebookPath;
-    window.open(notebookUrl, '_blank');
+    // Extract notebook filename from path
+    const notebookFilename = topic.notebookPath.split('/').pop() || '';
+
+    // Show notebook instructions modal
+    setSelectedNotebook({
+      filename: notebookFilename,
+      title: topic.title
+    });
+    setIsNotebookModalOpen(true);
 
     // Update current topic
     setProgress(prev => ({ ...prev, currentTopic: topicId }));
-  };
-
-  const handleMarkComplete = (topicId: number) => {
-    setProgress(prev => ({
-      ...prev,
-      completedTopics: [...prev.completedTopics, topicId],
-      currentTopic: topicId < topics.length ? topicId + 1 : topicId
-    }));
   };
 
   const isTopicLocked = (topic: typeof topics[0]) => {
@@ -219,6 +221,13 @@ function App() {
         onClose={() => setIsApiKeyModalOpen(false)}
         onSave={handleSaveApiKey}
         currentApiKey={progress.apiKey}
+      />
+
+      <NotebookInstructionsModal
+        isOpen={isNotebookModalOpen}
+        onClose={() => setIsNotebookModalOpen(false)}
+        notebookFilename={selectedNotebook.filename}
+        topicTitle={selectedNotebook.title}
       />
     </div>
   );
