@@ -80,6 +80,27 @@ function App() {
     setProgress(prev => ({ ...prev, currentTopic: topicId }));
   };
 
+  const handleMarkComplete = (topicId: number) => {
+    setProgress(prev => {
+      const isCurrentlyCompleted = prev.completedTopics.includes(topicId);
+
+      if (isCurrentlyCompleted) {
+        // Remove from completed (undo)
+        return {
+          ...prev,
+          completedTopics: prev.completedTopics.filter(id => id !== topicId)
+        };
+      } else {
+        // Add to completed
+        return {
+          ...prev,
+          completedTopics: [...prev.completedTopics, topicId],
+          currentTopic: topicId < topics.length ? topicId + 1 : topicId
+        };
+      }
+    });
+  };
+
   const isTopicLocked = (topic: typeof topics[0]) => {
     if (!topic.prerequisites) return false;
     return !topic.prerequisites.every(preReq =>
@@ -185,6 +206,7 @@ function App() {
               isCurrent={progress.currentTopic === topic.id}
               isLocked={isTopicLocked(topic)}
               onClick={() => handleTopicClick(topic.id)}
+              onMarkComplete={() => handleMarkComplete(topic.id)}
             />
           ))}
         </div>

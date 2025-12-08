@@ -1,6 +1,5 @@
-import React from 'react';
 import { Topic } from '../types';
-import { CheckCircle2, Circle, Lock, Clock, BookOpen } from 'lucide-react';
+import { CheckCircle2, Circle, Lock, Clock, BookOpen, Check } from 'lucide-react';
 
 interface TopicCardProps {
   topic: Topic;
@@ -8,6 +7,7 @@ interface TopicCardProps {
   isCurrent: boolean;
   isLocked: boolean;
   onClick: () => void;
+  onMarkComplete: () => void;
 }
 
 const TopicCard: React.FC<TopicCardProps> = ({
@@ -15,7 +15,8 @@ const TopicCard: React.FC<TopicCardProps> = ({
   isCompleted,
   isCurrent,
   isLocked,
-  onClick
+  onClick,
+  onMarkComplete
 }) => {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -30,9 +31,24 @@ const TopicCard: React.FC<TopicCardProps> = ({
     }
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger onClick if clicking on the mark complete button
+    if ((e.target as HTMLElement).closest('.mark-complete-btn')) {
+      return;
+    }
+    if (!isLocked) {
+      onClick();
+    }
+  };
+
+  const handleMarkComplete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMarkComplete();
+  };
+
   return (
     <div
-      onClick={!isLocked ? onClick : undefined}
+      onClick={handleCardClick}
       className={`
         relative p-6 rounded-lg border-2 transition-all duration-200
         ${isLocked ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:shadow-lg'}
@@ -92,15 +108,34 @@ const TopicCard: React.FC<TopicCardProps> = ({
             </div>
           )}
 
-          {isCurrent && !isCompleted && (
-            <div className="mt-4 px-3 py-2 bg-primary text-white rounded-md text-center font-medium">
-              Continue Learning
+          {!isLocked && !isCompleted && (
+            <div className="mt-4 flex gap-2">
+              <div className="flex-1 px-3 py-2 bg-primary text-white rounded-md text-center font-medium">
+                {isCurrent ? 'Continue Learning' : 'Start Topic'}
+              </div>
+              <button
+                onClick={handleMarkComplete}
+                className="mark-complete-btn px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition font-medium flex items-center gap-2"
+                title="Mark as complete"
+              >
+                <Check size={18} />
+                Complete
+              </button>
             </div>
           )}
 
           {isCompleted && (
-            <div className="mt-4 px-3 py-2 bg-green-600 text-white rounded-md text-center font-medium">
-              Completed
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex-1 px-3 py-2 bg-green-600 text-white rounded-md text-center font-medium">
+                Completed ✓
+              </div>
+              <button
+                onClick={handleMarkComplete}
+                className="mark-complete-btn ml-2 px-3 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition text-sm"
+                title="Mark as incomplete"
+              >
+                Undo
+              </button>
             </div>
           )}
 
