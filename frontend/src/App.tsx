@@ -4,6 +4,7 @@ import TopicCard from './components/TopicCard';
 import ProgressBar from './components/ProgressBar';
 import ApiKeyModal from './components/ApiKeyModal';
 import NotebookInstructionsModal from './components/NotebookInstructionsModal';
+import LangGraphTutorial from './components/LangGraphTutorial';
 import { topics } from './data/topics';
 import { UserProgress } from './types';
 import { BookOpen, AlertCircle } from 'lucide-react';
@@ -21,6 +22,7 @@ function App() {
   const [isNotebookModalOpen, setIsNotebookModalOpen] = useState(false);
   const [selectedNotebook, setSelectedNotebook] = useState({ filename: '', title: '' });
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(true);
 
   useEffect(() => {
     const savedProgress = localStorage.getItem(STORAGE_KEY);
@@ -118,6 +120,21 @@ function App() {
     }
   };
 
+  // If showing tutorial, render it instead of the main course
+  if (showTutorial) {
+    return (
+      <>
+        <LangGraphTutorial onStartTraining={() => setShowTutorial(false)} />
+        <ApiKeyModal
+          isOpen={isApiKeyModalOpen}
+          onClose={() => setIsApiKeyModalOpen(false)}
+          onSave={handleSaveApiKey}
+          currentApiKey={progress.apiKey}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -187,14 +204,22 @@ function App() {
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Learning Path</h2>
-          {progress.completedTopics.length > 0 && (
+          <div className="flex gap-4">
             <button
-              onClick={handleResetProgress}
-              className="text-sm text-red-600 hover:text-red-700 underline"
+              onClick={() => setShowTutorial(true)}
+              className="text-sm text-blue-600 hover:text-blue-700 underline"
             >
-              Reset Progress
+              View Tutorial
             </button>
-          )}
+            {progress.completedTopics.length > 0 && (
+              <button
+                onClick={handleResetProgress}
+                className="text-sm text-red-600 hover:text-red-700 underline"
+              >
+                Reset Progress
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4">
