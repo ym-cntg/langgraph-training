@@ -5,17 +5,29 @@ import ProgressBar from './components/ProgressBar';
 import ApiKeyModal from './components/ApiKeyModal';
 import NotebookInstructionsModal from './components/NotebookInstructionsModal';
 import LangGraphTutorial from './components/LangGraphTutorial';
+import SearchBar from './components/SearchBar';
+import FilterBar, { FilterOptions } from './components/FilterBar';
+import { StatsPanel } from './components/StatsPanel';
+import { AchievementsPanel } from './components/AchievementsPanel';
+import { ThemeToggle } from './components/ThemeToggle';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ToastProvider, useToast } from './contexts/ToastContext';
+import { useStats } from './hooks/useStats';
+import { useAchievements } from './hooks/useAchievements';
 import { topics } from './data/topics';
 import { UserProgress } from './types';
-import { BookOpen, AlertCircle } from 'lucide-react';
+import { BookOpen, AlertCircle, BarChart3, Award, Filter as FilterIcon } from 'lucide-react';
 
 const STORAGE_KEY = 'langgraph-training-progress';
 
-function App() {
+function AppContent() {
+  const { showToast } = useToast();
   const [progress, setProgress] = useState<UserProgress>({
     completedTopics: [],
     currentTopic: 1,
-    apiKey: ''
+    apiKey: '',
+    completionDates: {},
+    lastActivityDate: undefined,
   });
 
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
@@ -23,6 +35,24 @@ function App() {
   const [selectedNotebook, setSelectedNotebook] = useState({ filename: '', title: '' });
   const [showWelcome, setShowWelcome] = useState(true);
   const [showTutorial, setShowTutorial] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showStats, setShowStats] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    difficulty: [],
+    showCompleted: true,
+    showInProgress: true,
+    showLocked: true,
+  });
+
+  // Get stats and achievements
+  const stats = useStats(topics, progress.completedTopics, progress.completionDates);
+  const achievements = useAchievements(
+    topics,
+    progress.completedTopics,
+    stats.currentStreak,
+    stats.longestStreak
+  );
 
   useEffect(() => {
     const savedProgress = localStorage.getItem(STORAGE_KEY);
@@ -88,16 +118,30 @@ function App() {
 
       if (isCurrentlyCompleted) {
         // Remove from completed (undo)
+        const newCompletionDates = { ...prev.completionDates };
+        delete newCompletionDates[topicId];
+
+        showToast('Topic marked as incomplete', 'info');
+
         return {
           ...prev,
-          completedTopics: prev.completedTopics.filter(id => id !== topicId)
+          completedTopics: prev.completedTopics.filter(id => id !== topicId),
+          completionDates: newCompletionDates,
         };
       } else {
         // Add to completed
+        const topic = topics.find(t => t.id === topicId);
+        showToast(`Congratulations! You completed: ${topic?.title}`, 'success');
+
         return {
           ...prev,
           completedTopics: [...prev.completedTopics, topicId],
-          currentTopic: topicId < topics.length ? topicId + 1 : topicId
+          currentTopic: topicId < topics.length ? topicId + 1 : topicId,
+          completionDates: {
+            ...prev.completionDates,
+            [topicId]: new Date().toISOString(),
+          },
+          lastActivityDate: new Date().toISOString(),
         };
       }
     });
@@ -115,10 +159,40 @@ function App() {
       setProgress({
         completedTopics: [],
         currentTopic: 1,
-        apiKey: progress.apiKey
+        apiKey: progress.apiKey,
+        completionDates: {},
+        lastActivityDate: undefined,
       });
+      showToast('Progress has been reset', 'info');
     }
   };
+
+  // Filter and search topics
+  const filteredTopics = topics.filter(topic => {
+    // Search filter
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch =
+      topic.title.toLowerCase().includes(searchLower) ||
+      topic.description.toLowerCase().includes(searchLower);
+
+    if (!matchesSearch) return false;
+
+    // Difficulty filter
+    if (filters.difficulty.length > 0 && !filters.difficulty.includes(topic.difficulty)) {
+      return false;
+    }
+
+    // Status filter
+    const isCompleted = progress.completedTopics.includes(topic.id);
+    const isLocked = isTopicLocked(topic);
+    const isInProgress = !isCompleted && !isLocked;
+
+    if (isCompleted && !filters.showCompleted) return false;
+    if (isInProgress && !filters.showInProgress) return false;
+    if (isLocked && !filters.showLocked) return false;
+
+    return true;
+  });
 
   // If showing tutorial, render it instead of the main course
   if (showTutorial) {
@@ -136,15 +210,60 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header
-        hasApiKey={!!progress.apiKey}
-        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
-      />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between py-4">
+            <Header
+              hasApiKey={!!progress.apiKey}
+              onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  showStats
+                    ? 'bg-primary text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <BarChart3 size={18} />
+                Stats
+              </button>
+              <button
+                onClick={() => setShowAchievements(!showAchievements)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  showAchievements
+                    ? 'bg-primary text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Award size={18} />
+                Achievements
+              </button>
+              <ThemeToggle />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Stats Panel */}
+        {showStats && (
+          <div className="mb-6 animate-slideDown">
+            <StatsPanel stats={stats} />
+          </div>
+        )}
+
+        {/* Achievements Panel */}
+        {showAchievements && (
+          <div className="mb-6 animate-slideDown">
+            <AchievementsPanel achievements={achievements} />
+          </div>
+        )}
+
         {showWelcome && (
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg p-8 mb-6">
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-700 dark:to-purple-800 text-white rounded-lg shadow-lg p-8 mb-6">
             <div className="flex items-start gap-4">
               <BookOpen size={48} className="flex-shrink-0" />
               <div>
@@ -173,7 +292,7 @@ function App() {
                 </ul>
                 <button
                   onClick={() => setShowWelcome(false)}
-                  className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition"
+                  className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 dark:bg-gray-100 dark:text-blue-700 transition"
                 >
                   Get Started
                 </button>
@@ -183,12 +302,12 @@ function App() {
         )}
 
         {!progress.apiKey && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded">
+          <div className="bg-yellow-50 dark:bg-yellow-900 border-l-4 border-yellow-400 dark:border-yellow-600 p-4 mb-6 rounded">
             <div className="flex items-start gap-3">
-              <AlertCircle className="text-yellow-600 flex-shrink-0 mt-1" size={24} />
+              <AlertCircle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-1" size={24} />
               <div>
-                <h3 className="font-semibold text-yellow-800 mb-1">API Key Required</h3>
-                <p className="text-yellow-700 text-sm">
+                <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">API Key Required</h3>
+                <p className="text-yellow-700 dark:text-yellow-300 text-sm">
                   Please set your Anthropic API key to start working with the notebooks.
                   Click the "Set API Key" button in the header to get started.
                 </p>
@@ -202,19 +321,44 @@ function App() {
           total={topics.length}
         />
 
+        {/* Search and Filter Section */}
+        <div className="mb-6 space-y-4">
+          <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+
+          <details className="group">
+            <summary className="cursor-pointer flex items-center gap-2 text-gray-700 dark:text-gray-300 font-medium hover:text-primary dark:hover:text-blue-400">
+              <FilterIcon size={18} />
+              <span>Advanced Filters</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                ({filters.difficulty.length > 0 || !filters.showCompleted || !filters.showInProgress || !filters.showLocked ? 'Active' : 'None'})
+              </span>
+            </summary>
+            <div className="mt-3">
+              <FilterBar filters={filters} onFilterChange={setFilters} />
+            </div>
+          </details>
+        </div>
+
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Learning Path</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Learning Path
+            {filteredTopics.length !== topics.length && (
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                ({filteredTopics.length} of {topics.length} topics)
+              </span>
+            )}
+          </h2>
           <div className="flex gap-4">
             <button
               onClick={() => setShowTutorial(true)}
-              className="text-sm text-blue-600 hover:text-blue-700 underline"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
             >
               View Tutorial
             </button>
             {progress.completedTopics.length > 0 && (
               <button
                 onClick={handleResetProgress}
-                className="text-sm text-red-600 hover:text-red-700 underline"
+                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline"
               >
                 Reset Progress
               </button>
@@ -222,23 +366,31 @@ function App() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          {topics.map((topic) => (
-            <TopicCard
-              key={topic.id}
-              topic={topic}
-              isCompleted={progress.completedTopics.includes(topic.id)}
-              isCurrent={progress.currentTopic === topic.id}
-              isLocked={isTopicLocked(topic)}
-              onClick={() => handleTopicClick(topic.id)}
-              onMarkComplete={() => handleMarkComplete(topic.id)}
-            />
-          ))}
-        </div>
+        {filteredTopics.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400 text-lg">
+              No topics match your filters. Try adjusting your search or filter settings.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredTopics.map((topic) => (
+              <TopicCard
+                key={topic.id}
+                topic={topic}
+                isCompleted={progress.completedTopics.includes(topic.id)}
+                isCurrent={progress.currentTopic === topic.id}
+                isLocked={isTopicLocked(topic)}
+                onClick={() => handleTopicClick(topic.id)}
+                onMarkComplete={() => handleMarkComplete(topic.id)}
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-bold mb-3">How to Use This Training</h3>
-          <ol className="space-y-3 text-gray-700">
+        <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-gray-100">How to Use This Training</h3>
+          <ol className="space-y-3 text-gray-700 dark:text-gray-300">
             <li className="flex gap-3">
               <span className="font-bold text-primary">1.</span>
               <span>Set your Anthropic API key using the button in the header</span>
@@ -280,4 +432,12 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}

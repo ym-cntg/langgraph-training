@@ -13,4 +13,6 @@ export interface UserProgress {
   completedTopics: number[];
   currentTopic: number;
   apiKey: string;
+  completionDates?: Record<number, string>; // topicId -> ISO date string
+  lastActivityDate?: string;
 }
