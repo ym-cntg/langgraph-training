@@ -81,17 +81,6 @@ function AppContent() {
     const topic = topics.find(t => t.id === topicId);
     if (!topic) return;
 
-    // Check if prerequisites are met
-    if (topic.prerequisites) {
-      const hasPrerequisites = topic.prerequisites.every(preReq =>
-        progress.completedTopics.includes(preReq)
-      );
-      if (!hasPrerequisites) {
-        alert('Please complete the prerequisite topics first!');
-        return;
-      }
-    }
-
     if (!progress.apiKey) {
       alert('Please set your Anthropic API key first! Click the "Set API Key" button in the header.');
       setIsApiKeyModalOpen(true);
@@ -147,11 +136,9 @@ function AppContent() {
     });
   };
 
-  const isTopicLocked = (topic: typeof topics[0]) => {
-    if (!topic.prerequisites) return false;
-    return !topic.prerequisites.every(preReq =>
-      progress.completedTopics.includes(preReq)
-    );
+  const isTopicLocked = (_topic: typeof topics[0]) => {
+    // All topics are now unlocked - no prerequisite checking
+    return false;
   };
 
   const handleResetProgress = () => {
@@ -287,7 +274,7 @@ function AppContent() {
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-2xl">🎯</span>
-                    <span>Progressive learning path with prerequisites</span>
+                    <span>Learn at your own pace in any order</span>
                   </li>
                 </ul>
                 <button
@@ -405,7 +392,7 @@ function AppContent() {
             </li>
             <li className="flex gap-3">
               <span className="font-bold text-primary">4.</span>
-              <span>Topics unlock progressively as you complete prerequisites</span>
+              <span>All topics are available - learn at your own pace in any order</span>
             </li>
             <li className="flex gap-3">
               <span className="font-bold text-primary">5.</span>
